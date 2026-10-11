@@ -200,6 +200,7 @@ export default function App() {
       recorder.start(250);
       const startAt = performance.now();
       let animation = 0;
+      let stopped = false;
       const render = () => {
         const time = audio.currentTime;
         drawFrame(ctx, time, width, height);
