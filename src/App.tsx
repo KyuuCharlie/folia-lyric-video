@@ -79,21 +79,26 @@ export default function App() {
   };
   const drawFrame = (ctx: CanvasRenderingContext2D, time: number, width: number, height: number) => {
     const gradient = ctx.createRadialGradient(width * .52, height * .52, 10, width * .5, height * .5, width * .8);
-    if (theme === "Minimal") {
-      gradient.addColorStop(0, "#20202a"); gradient.addColorStop(1, "#08090d");
-    } else if (theme === "Kinetic Type") {
-      gradient.addColorStop(0, "#173a46"); gradient.addColorStop(1, "#090d18");
-    } else {
-      gradient.addColorStop(0, "#40315e"); gradient.addColorStop(.55, "#1a1727"); gradient.addColorStop(1, "#090a10");
-    }
+    if (theme === "Minimal") { gradient.addColorStop(0, "#20202a"); gradient.addColorStop(1, "#08090d"); }
+    else if (theme === "Kinetic Type") { gradient.addColorStop(0, "#173a46"); gradient.addColorStop(1, "#090d18"); }
+    else { gradient.addColorStop(0, "#40315e"); gradient.addColorStop(.55, "#1a1727"); gradient.addColorStop(1, "#090a10"); }
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height);
+    const analyser = analyserRef.current;
+    const spectrum = frequencyDataRef.current;
+    if (analyser && spectrum) analyser.getByteFrequencyData(spectrum);
+    const bass = spectrum ? spectrum.slice(0, 12).reduce((sum, n) => sum + n, 0) / (12 * 255) : 0;
     if (theme !== "Minimal") {
       for (let i = 0; i < 7; i++) {
-        const x = width * (.12 + i * .13) + Math.sin(time * .45 + i) * 22;
+        const x = width * (.12 + i * .13) + Math.sin(time * .45 + i) * (22 + bass * 55);
         const y = height * (.18 + (i % 3) * .29) + Math.cos(time * .4 + i) * 18;
-        ctx.beginPath(); ctx.arc(x, y, 45 + (i % 3) * 18, 0, Math.PI * 2);
-        ctx.fillStyle = theme === "Kinetic Type" ? "rgba(95,190,205,.055)" : "rgba(184,157,255,.06)"; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 45 + (i % 3) * 18 + bass * 80, 0, Math.PI * 2);
+        ctx.fillStyle = theme === "Kinetic Type" ? "rgba(95,190,205,.055)" : `rgba(184,157,255,${.035 + bass * .12})`; ctx.fill();
       }
+    }
+    if (filter === "Neon Bloom") {
+      const glow = ctx.createRadialGradient(width * .5, height * .5, 10, width * .5, height * .5, width * (.16 + bass * .35));
+      glow.addColorStop(0, `rgba(126,94,255,${.08 + bass * .24})`); glow.addColorStop(1, "rgba(126,94,255,0)");
+      ctx.fillStyle = glow; ctx.fillRect(0, 0, width, height);
     }
     const line = [...lyrics].sort((a, b) => toSeconds(a.time) - toSeconds(b.time)).reverse().find((item) => toSeconds(item.time) <= time && item.text.trim());
     const text = line?.text || "";
@@ -101,9 +106,13 @@ export default function App() {
     const fontSize = Math.min(68, Math.max(28, width * .047));
     ctx.font = `600 ${fontSize}px "Segoe UI", Arial, sans-serif`;
     ctx.shadowColor = theme === "Minimal" ? "transparent" : "rgba(185,165,255,.5)";
-    ctx.shadowBlur = theme === "Minimal" ? 0 : 28;
+    ctx.shadowBlur = theme === "Minimal" ? 0 : filter === "Neon Bloom" ? 28 + bass * 40 : 12;
+    if (filter === "Chromatic" && text) {
+      ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,55,130,.72)"; ctx.fillText(text, width / 2 - 4, height / 2, width * .84);
+      ctx.fillStyle = "rgba(50,220,255,.72)"; ctx.fillText(text, width / 2 + 4, height / 2, width * .84);
+    }
     ctx.fillStyle = "#f5f1ff";
-    const words = text.split(/\s+/); const rows: string[] = []; let row = "";
+    const words = text.split(/\\s+/); const rows: string[] = []; let row = "";
     for (const word of words) {
       const candidate = row ? row + " " + word : word;
       if (ctx.measureText(candidate).width > width * .82 && row) { rows.push(row); row = word; } else row = candidate;
@@ -115,6 +124,23 @@ export default function App() {
     ctx.fillStyle = "#b9a5ff"; ctx.fillRect(width * .47, height * .68, width * .06, 4);
     ctx.font = '500 16px "Segoe UI", Arial, sans-serif'; ctx.fillStyle = "rgba(225,220,245,.58)";
     ctx.fillText("LYRIC VIDEO", width / 2, height * .77);
+    if (showSpectrum && spectrum) {
+      const count = 96, barGap = 5, barWidth = (width * .82) / count;
+      for (let i = 0; i < count; i++) {
+        const index = Math.min(spectrum.length - 1, Math.floor(Math.pow(i / count, 1.65) * spectrum.length));
+        const value = spectrum[index] / 255;
+        const barHeight = 6 + value * height * .1;
+        ctx.fillStyle = filter === "Chromatic" ? "rgba(94,220,255,.78)" : theme === "Kinetic Type" ? "rgba(98,220,232,.8)" : "rgba(185,165,255,.8)";
+        ctx.fillRect(width * .09 + i * barWidth, height * .91 - barHeight, Math.max(2, barWidth - barGap), barHeight);
+      }
+    }
+    if (filter === "Scanlines" || filter === "VHS") {
+      ctx.fillStyle = filter === "VHS" ? "rgba(8,5,15,.16)" : "rgba(0,0,0,.18)";
+      for (let y = 0; y < height; y += filter === "VHS" ? 5 : 4) ctx.fillRect(0, y, width, 1);
+    }
+    if (filter === "VHS") {
+      ctx.fillStyle = "rgba(185,165,255,.045)"; ctx.fillRect(0, (time * 83) % height, width, 26);
+    }
   };
   const exportVideo = async () => {
     const audio = audioRef.current;
@@ -133,9 +159,15 @@ export default function App() {
       const AudioContextClass = window.AudioContext;
       const audioContext = audioContextRef.current ?? new AudioContextClass();
       audioContextRef.current = audioContext;
-      if (!audioSourceRef.current) {
-        audioSourceRef.current = audioContext.createMediaElementSource(audio);
-        audioSourceRef.current.connect(audioContext.destination);
+      if (!audioSourceRef.current) audioSourceRef.current = audioContext.createMediaElementSource(audio);
+      if (!analyserRef.current) {
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.78;
+        analyserRef.current = analyser;
+        frequencyDataRef.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+        audioSourceRef.current.connect(analyser);
+        analyser.connect(audioContext.destination);
       }
       const audioDestination = audioContext.createMediaStreamDestination();
       audioSourceRef.current.connect(audioDestination);
@@ -169,7 +201,7 @@ export default function App() {
         drawFrame(ctx, time, width, height);
         setCurrentTime(time);
         setExportMessage(`Rendering · ${formatTime(time)} / ${formatTime(duration)}`);
-        if (!audio.paused && recorder.state === "recording") animation = requestAnimationFrame(render);
+        if (!audio.paused && recorder.state === "recording" && !stopped) animation = window.setTimeout(render, 1000 / targetFps) as unknown as number;
       };
       await audio.play(); setPlaying(true); render();
       const stopOnError = () => { stopped = true; window.clearTimeout(animation); if (recorder.state !== "inactive") recorder.stop(); };
@@ -194,5 +226,5 @@ export default function App() {
     <canvas ref={canvasRef} className="render-canvas" aria-hidden="true" />
     <section className="grid"><aside className="panel"><div className="panel-head"><span><Music2 size={15}/> PROJECT</span><span className="muted">LOCAL</span></div><div className="project"><div className="project-icon"><Music2 size={19}/></div><div><b>Untitled project</b><small>Local workspace</small></div></div><p className="label">MEDIA</p><label className="drop"><input type="file" accept="audio/*" onChange={e => chooseAudio(e.target.files?.[0])}/><FileAudio size={22}/><b>{audioName || "Import audio"}</b><small>{audioName ? "Loaded locally" : "MP3, WAV, FLAC and more"}</small><span>Browse files</span></label><p className="label">LYRICS <span>{lyrics.length} lines</span></p><div className="lyrics">{lyrics.map((line,i)=><button key={line.id} onClick={()=>{setActive(i);const audio=audioRef.current;if(audio){audio.currentTime=toSeconds(line.time);setCurrentTime(audio.currentTime)}}} className={active===i?"lyric selected":"lyric"}><small>{line.time}</small><span>{line.text || "Empty line"}</span></button>)}</div><button className="add" onClick={()=>setLyrics(all=>[...all,{id:Math.max(0,...all.map(x=>x.id))+1,time:formatTime(currentTime),text:""}])}><Plus size={14}/> Add lyric line</button></aside>
     <section className="center"><div className="panel preview"><div className="panel-head"><span><Clapperboard size={15}/> PREVIEW</span><span className="muted">16:9 · 1920 × 1080 · {fps} FPS target</span></div><div className="stage"><div className="glow glow-a"/><div className="glow glow-b"/><div className="stage-content"><small>NOW PLAYING · PREVIEW</small><h2>{activeLyric?.text || lyrics[active]?.text || "Your lyric appears here"}</h2><i/><p>LYRIC VIDEO / {theme.toUpperCase()}</p></div></div><div className="transport"><button className="transport-play" onClick={togglePlayback} aria-label={playing?"Pause":"Play"}>{playing?<Pause size={14}/>:<Play size={14}/>}</button><span>{formatTime(currentTime)}</span><input aria-label="Seek audio" type="range" min={0} max={duration || 32} step={0.05} value={Math.min(currentTime,duration||32)} onChange={e=>{const value=Number(e.target.value);if(audioRef.current)audioRef.current.currentTime=value;setCurrentTime(value)}}/><span>{formatTime(duration)}</span></div></div><div className="panel timeline"><div className="panel-head"><span><Layers3 size={15}/> TIMELINE</span><span className="muted">Synced to audio</span></div><div className="ruler"><span>00:00</span><span>{formatTime(duration*.25)}</span><span>{formatTime(duration*.5)}</span><span>{formatTime(duration*.75)}</span><span>{formatTime(duration)}</span></div><div className="track"><span><AudioLines size={12}/> AUDIO</span><div className="wave">{Array.from({length:70},(_,i)=><i key={i} style={{height:`${18+((i*17+11)%72)}%`}}/>)}</div></div><div className="track"><span><Subtitles size={12}/> TEXT</span><div className="clips">{lyrics.map((line,i)=><button key={line.id} className={active===i?"clip active":`clip clip-${i%3}`} onClick={()=>{setActive(i);if(audioRef.current)audioRef.current.currentTime=toSeconds(line.time)}}>{line.text||"Lyric"}</button>)}</div></div></div></section>
-    <aside className="panel inspector"><div className="panel-head"><span><WandSparkles size={15}/> INSPECTOR</span></div><section><p className="label">ANIMATION THEME</p><div className="theme"><div className="theme-art"><i/><i/><i/></div><div><b>{theme}</b><small>Rendered typography</small></div></div><div className="options">{["Soft Glow","Kinetic Type","Minimal"].map(t=><button key={t} className={theme===t?"option chosen":"option"} onClick={()=>setTheme(t)}>{t}</button>)}</div></section><section><p className="label">LIVE VISUALS</p><label className="field">Filter preset<select value={filter} onChange={e=>setFilter(e.target.value)}><option>Neon Bloom</option><option>Chromatic</option><option>Scanlines</option><option>VHS</option><option>Clean</option></select></label><label className="spectrum-toggle"><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/> Audio-reactive FFT spectrum</label><p className="hint">FFT analyzes bass and mid/high frequencies to drive spectrum bars and glow intensity.</p><p className="label">SELECTED LYRIC</p><label className="field">Text<textarea rows={3} value={lyrics[active]?.text??""} onChange={e=>lyrics[active]&&edit(lyrics[active].id,e.target.value)}/></label><label className="field">Start time (MM:SS.xx)<input value={lyrics[active]?.time??""} onChange={e=>lyrics[active]&&editTime(lyrics[active].id,e.target.value)} placeholder="00:04.20"/></label><p className="hint">Each lyric appears at its start time and remains until the next line. Export records the full audio duration.</p></section><section><p className="label">EXPORT SETTINGS</p><div className="setting"><span>Aspect ratio</span><b>16:9</b></div><div className="setting"><span>Resolution</span><b>1920 × 1080</b></div><div className="setting"><span>Frame rate</span><b>30 FPS</b></div><div className="setting"><span>Output</span><b>WebM · VP9/VP8</b></div><p className="hint export-status">{exportMessage}</p><button className="download-action" onClick={exportVideo} disabled={exporting||!audioUrl}><Download size={14}/>{exporting?"Rendering video…":"Render and save video"}</button></section><div className="foot"><WandSparkles size={14}/> Local rendering · no upload</div></aside></section><footer><span><i/> {exporting?"Rendering": "Ready"}</span><span>{audioName || "No audio imported"}</span><span>{exportMessage}</span></footer></main>;
+    <aside className="panel inspector"><div className="panel-head"><span><WandSparkles size={15}/> INSPECTOR</span></div><section><p className="label">ANIMATION THEME</p><div className="theme"><div className="theme-art"><i/><i/><i/></div><div><b>{theme}</b><small>Rendered typography</small></div></div><div className="options">{["Soft Glow","Kinetic Type","Minimal"].map(t=><button key={t} className={theme===t?"option chosen":"option"} onClick={()=>setTheme(t)}>{t}</button>)}</div></section><section><p className="label">LIVE VISUALS</p><label className="field">Filter preset<select value={filter} onChange={e=>setFilter(e.target.value)}><option>Neon Bloom</option><option>Chromatic</option><option>Scanlines</option><option>VHS</option><option>Clean</option></select></label><label className="spectrum-toggle"><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/> Audio-reactive FFT spectrum</label><p className="hint">FFT analyzes bass and mid/high frequencies to drive spectrum bars and glow intensity.</p><p className="label">SELECTED LYRIC</p><label className="field">Text<textarea rows={3} value={lyrics[active]?.text??""} onChange={e=>lyrics[active]&&edit(lyrics[active].id,e.target.value)}/></label><label className="field">Start time (MM:SS.xx)<input value={lyrics[active]?.time??""} onChange={e=>lyrics[active]&&editTime(lyrics[active].id,e.target.value)} placeholder="00:04.20"/></label><p className="hint">Each lyric appears at its start time and remains until the next line. Export records the full audio duration.</p></section><section><p className="label">EXPORT SETTINGS</p><div className="setting"><span>Aspect ratio</span><b>16:9</b></div><div className="setting"><span>Resolution</span><b>1920 × 1080</b></div><div className="setting"><span>Frame rate</span><select className="fps-select" value={fps} onChange={e=>setFps(Number(e.target.value))}><option value={30}>30 FPS</option><option value={60}>60 FPS</option><option value={120}>120 FPS target</option></select></div><div className="setting"><span>Output</span><b>WebM · VP9/VP8</b></div><p className="hint export-status">{exportMessage}</p><button className="download-action" onClick={exportVideo} disabled={exporting||!audioUrl}><Download size={14}/>{exporting?"Rendering video…":"Render and save video"}</button></section><div className="foot"><WandSparkles size={14}/> Local rendering · no upload</div></aside></section><footer><span><i/> {exporting?"Rendering": "Ready"}</span><span>{audioName || "No audio imported"}</span><span>{exportMessage}</span></footer></main>;
 }
