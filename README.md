@@ -15,7 +15,7 @@ A Windows-first desktop lyric-video editor with local MP4 export as the primary 
 - Tests: Vitest and Rust tests where appropriate
 
 ## Status
-Initial scaffold. Actual rendering, Folia integration, and Windows packaging are not implemented yet.
+The first rendering MVP is implemented: import a local audio file, edit lyric text and start times, preview playback, choose one of three visual themes, and render a 1920×1080 / 30 FPS WebM video with synchronized audio. Rendering happens locally in the desktop/web runtime; audio is not uploaded. MP4/H.264 encoding, REST API/webhooks, and verified Windows release packaging remain follow-up work. The Windows Actions build is being validated.
 
 ## Development
 Prerequisites: Node.js LTS/npm, Rust stable, and Tauri's Windows build prerequisites.
