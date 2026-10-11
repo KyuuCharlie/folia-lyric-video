@@ -5,3 +5,5 @@
 
 /* Stage visual controls */
 .fps-select,.field select{max-width:100%;border:1px solid #3b3549;border-radius:5px;padding:6px 8px;background:#1b1823;color:#e4dcff;font-size:10px;cursor:pointer}.spectrum-toggle{display:flex;align-items:center;gap:7px;color:#b9b3c7;font-size:10px;margin:10px 0}.spectrum-toggle input{accent-color:#b9a5ff}.stage-content h2{overflow-wrap:anywhere}.setting .fps-select{font-family:"DM Mono",monospace}
+
+.preview-canvas{display:block;width:100%;height:100%;object-fit:contain;aspect-ratio:16/9}.stage{display:block;min-height:0}.fps-select,.field select{max-width:100%;border:1px solid #3b3549;border-radius:5px;padding:6px 8px;background:#1b1823;color:#e4dcff;font-size:10px;cursor:pointer}.spectrum-toggle{display:flex;align-items:center;gap:7px;color:#b9b3c7;font-size:10px;margin:10px 0}.spectrum-toggle input{accent-color:#b9a5ff}
