@@ -15,7 +15,7 @@ A Windows-first desktop lyric-video editor with local MP4 export as the primary 
 - Tests: Vitest and Rust tests where appropriate
 
 ## Status
-The first rendering MVP is implemented: import a local audio file, edit lyric text and start times, preview playback, choose one of three visual themes, and render a 1920×1080 / 30 FPS WebM video with synchronized audio. Rendering happens locally in the desktop/web runtime; audio is not uploaded. MP4/H.264 encoding, REST API/webhooks, and verified Windows release packaging remain follow-up work. The Windows Actions build is being validated.
+The rendering MVP supports local audio import, timed lyric editing, playback preview, three typography themes, and WebM export at selectable 30/60/120 FPS targets. A Web Audio FFT analyser drives a 96-bar spectrum and bass-responsive glow; filter presets include Neon Bloom, Chromatic, Scanlines, VHS, and Clean. Output is 1920×1080 with synchronized audio and is rendered locally. Actual sustained 120 FPS depends on the device, browser/runtime, and encoder; the selected FPS is a target, not a guarantee. MP4/H.264 encoding, REST API/webhooks, and verified Windows release packaging remain follow-up work.
 
 ## Development
 Prerequisites: Node.js LTS/npm, Rust stable, and Tauri's Windows build prerequisites.
