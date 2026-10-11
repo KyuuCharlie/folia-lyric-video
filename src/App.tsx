@@ -22,6 +22,9 @@ export default function App() {
   const [lyrics, setLyrics] = useState(starter);
   const [active, setActive] = useState(0);
   const [theme, setTheme] = useState("Soft Glow");
+  const [filter, setFilter] = useState("Neon Bloom");
+  const [fps, setFps] = useState(120);
+  const [showSpectrum, setShowSpectrum] = useState(true);
   const [audioName, setAudioName] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [duration, setDuration] = useState(32);
@@ -33,6 +36,8 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const frequencyDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const edit = (id: number, text: string) => setLyrics((all) => all.map((line) => line.id === id ? { ...line, text } : line));
   const editTime = (id: number, time: string) => setLyrics((all) => all.map((line) => line.id === id ? { ...line, time } : line));
   const orderedLyrics = [...lyrics].sort((a, b) => toSeconds(a.time) - toSeconds(b.time));
@@ -121,10 +126,10 @@ export default function App() {
       audio.pause(); audio.currentTime = 0;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not create the video canvas");
-      const width = 1920, height = 1080, fps = 30;
+      const width = 1920, height = 1080, targetFps = fps;
       canvas.width = width; canvas.height = height;
       drawFrame(ctx, 0, width, height);
-      const videoStream = canvas.captureStream(fps);
+      const videoStream = canvas.captureStream(targetFps);
       const AudioContextClass = window.AudioContext;
       const audioContext = audioContextRef.current ?? new AudioContextClass();
       audioContextRef.current = audioContext;
@@ -139,7 +144,7 @@ export default function App() {
       const preferred = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
       const mimeType = preferred.find((type) => MediaRecorder.isTypeSupported(type));
       if (!mimeType) throw new Error("This browser does not support WebM video export");
-      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: targetFps >= 120 ? 24_000_000 : targetFps >= 60 ? 16_000_000 : 8_000_000 });
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
       recorder.onerror = () => { setExporting(false); setExportMessage("Export failed during recording"); };
@@ -148,12 +153,12 @@ export default function App() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `${audioName.replace(/\.[^.]+$/, "") || "lyric-video"}.webm`;
+        link.download = `${audioName.replace(/\.[^.]+$/, "") || "lyric-video"}-${targetFps}fps.webm`;
         document.body.appendChild(link); link.click(); link.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
         stream.getTracks().forEach((track) => track.stop());
         setExporting(false); setPlaying(false); setCurrentTime(audio.currentTime);
-        setExportMessage(`Export complete · ${(blob.size / 1024 / 1024).toFixed(1)} MB WebM`);
+        setExportMessage(`Export complete · ${targetFps} FPS target · ${(blob.size / 1024 / 1024).toFixed(1)} MB WebM`);
       };
       audio.onended = () => { if (recorder.state !== "inactive") recorder.stop(); };
       recorder.start(250);
@@ -167,7 +172,7 @@ export default function App() {
         if (!audio.paused && recorder.state === "recording") animation = requestAnimationFrame(render);
       };
       await audio.play(); setPlaying(true); render();
-      const stopOnError = () => { cancelAnimationFrame(animation); if (recorder.state !== "inactive") recorder.stop(); };
+      const stopOnError = () => { stopped = true; window.clearTimeout(animation); if (recorder.state !== "inactive") recorder.stop(); };
       audio.addEventListener("error", stopOnError, { once: true });
       // Safety stop in case the media element does not emit ended.
       const stopAfterDuration = () => {
@@ -184,10 +189,10 @@ export default function App() {
     }
   };
   return <main className="app"><header className="topbar"><div className="brand"><span className="brand-icon"><AudioLines size={20}/></span> folia <span className="light">studio</span><span className="tag">WINDOWS FIRST</span></div><div className="top-actions"><span className="local-dot"/> Local project <Settings2 size={17}/></div></header>
-    <section className="heading"><div><p className="eyebrow">DESKTOP WORKSPACE</p><h1>Lyric video studio</h1><p className="sub">Shape the words. Set the rhythm. Export your video.</p></div><button className="export" onClick={exportVideo} disabled={exporting}><Clapperboard size={16}/>{exporting ? "Rendering…" : "Export WebM"}</button></section>
+    <section className="heading"><div><p className="eyebrow">DESKTOP WORKSPACE</p><h1>Lyric video studio</h1><p className="sub">Shape the words. Set the rhythm. Export your video.</p></div><button className="export" onClick={exportVideo} disabled={exporting}><Clapperboard size={16}/>{exporting ? "Rendering…" : `Export ${fps} FPS`}</button></section>
     <audio ref={audioRef} src={audioUrl || undefined} onLoadedMetadata={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 32)} onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)} />
     <canvas ref={canvasRef} className="render-canvas" aria-hidden="true" />
     <section className="grid"><aside className="panel"><div className="panel-head"><span><Music2 size={15}/> PROJECT</span><span className="muted">LOCAL</span></div><div className="project"><div className="project-icon"><Music2 size={19}/></div><div><b>Untitled project</b><small>Local workspace</small></div></div><p className="label">MEDIA</p><label className="drop"><input type="file" accept="audio/*" onChange={e => chooseAudio(e.target.files?.[0])}/><FileAudio size={22}/><b>{audioName || "Import audio"}</b><small>{audioName ? "Loaded locally" : "MP3, WAV, FLAC and more"}</small><span>Browse files</span></label><p className="label">LYRICS <span>{lyrics.length} lines</span></p><div className="lyrics">{lyrics.map((line,i)=><button key={line.id} onClick={()=>{setActive(i);const audio=audioRef.current;if(audio){audio.currentTime=toSeconds(line.time);setCurrentTime(audio.currentTime)}}} className={active===i?"lyric selected":"lyric"}><small>{line.time}</small><span>{line.text || "Empty line"}</span></button>)}</div><button className="add" onClick={()=>setLyrics(all=>[...all,{id:Math.max(0,...all.map(x=>x.id))+1,time:formatTime(currentTime),text:""}])}><Plus size={14}/> Add lyric line</button></aside>
-    <section className="center"><div className="panel preview"><div className="panel-head"><span><Clapperboard size={15}/> PREVIEW</span><span className="muted">16:9 · 1920 × 1080</span></div><div className="stage"><div className="glow glow-a"/><div className="glow glow-b"/><div className="stage-content"><small>NOW PLAYING · PREVIEW</small><h2>{activeLyric?.text || lyrics[active]?.text || "Your lyric appears here"}</h2><i/><p>LYRIC VIDEO / {theme.toUpperCase()}</p></div></div><div className="transport"><button className="transport-play" onClick={togglePlayback} aria-label={playing?"Pause":"Play"}>{playing?<Pause size={14}/>:<Play size={14}/>}</button><span>{formatTime(currentTime)}</span><input aria-label="Seek audio" type="range" min={0} max={duration || 32} step={0.05} value={Math.min(currentTime,duration||32)} onChange={e=>{const value=Number(e.target.value);if(audioRef.current)audioRef.current.currentTime=value;setCurrentTime(value)}}/><span>{formatTime(duration)}</span></div></div><div className="panel timeline"><div className="panel-head"><span><Layers3 size={15}/> TIMELINE</span><span className="muted">Synced to audio</span></div><div className="ruler"><span>00:00</span><span>{formatTime(duration*.25)}</span><span>{formatTime(duration*.5)}</span><span>{formatTime(duration*.75)}</span><span>{formatTime(duration)}</span></div><div className="track"><span><AudioLines size={12}/> AUDIO</span><div className="wave">{Array.from({length:70},(_,i)=><i key={i} style={{height:`${18+((i*17+11)%72)}%`}}/>)}</div></div><div className="track"><span><Subtitles size={12}/> TEXT</span><div className="clips">{lyrics.map((line,i)=><button key={line.id} className={active===i?"clip active":`clip clip-${i%3}`} onClick={()=>{setActive(i);if(audioRef.current)audioRef.current.currentTime=toSeconds(line.time)}}>{line.text||"Lyric"}</button>)}</div></div></div></section>
-    <aside className="panel inspector"><div className="panel-head"><span><WandSparkles size={15}/> INSPECTOR</span></div><section><p className="label">ANIMATION THEME</p><div className="theme"><div className="theme-art"><i/><i/><i/></div><div><b>{theme}</b><small>Rendered typography</small></div></div><div className="options">{["Soft Glow","Kinetic Type","Minimal"].map(t=><button key={t} className={theme===t?"option chosen":"option"} onClick={()=>setTheme(t)}>{t}</button>)}</div></section><section><p className="label">SELECTED LYRIC</p><label className="field">Text<textarea rows={3} value={lyrics[active]?.text??""} onChange={e=>lyrics[active]&&edit(lyrics[active].id,e.target.value)}/></label><label className="field">Start time (MM:SS.xx)<input value={lyrics[active]?.time??""} onChange={e=>lyrics[active]&&editTime(lyrics[active].id,e.target.value)} placeholder="00:04.20"/></label><p className="hint">Each lyric appears at its start time and remains until the next line. Export records the full audio duration.</p></section><section><p className="label">EXPORT SETTINGS</p><div className="setting"><span>Aspect ratio</span><b>16:9</b></div><div className="setting"><span>Resolution</span><b>1920 × 1080</b></div><div className="setting"><span>Frame rate</span><b>30 FPS</b></div><div className="setting"><span>Output</span><b>WebM · VP9/VP8</b></div><p className="hint export-status">{exportMessage}</p><button className="download-action" onClick={exportVideo} disabled={exporting||!audioUrl}><Download size={14}/>{exporting?"Rendering video…":"Render and save video"}</button></section><div className="foot"><WandSparkles size={14}/> Local rendering · no upload</div></aside></section><footer><span><i/> {exporting?"Rendering": "Ready"}</span><span>{audioName || "No audio imported"}</span><span>{exportMessage}</span></footer></main>;
+    <section className="center"><div className="panel preview"><div className="panel-head"><span><Clapperboard size={15}/> PREVIEW</span><span className="muted">16:9 · 1920 × 1080 · {fps} FPS target</span></div><div className="stage"><div className="glow glow-a"/><div className="glow glow-b"/><div className="stage-content"><small>NOW PLAYING · PREVIEW</small><h2>{activeLyric?.text || lyrics[active]?.text || "Your lyric appears here"}</h2><i/><p>LYRIC VIDEO / {theme.toUpperCase()}</p></div></div><div className="transport"><button className="transport-play" onClick={togglePlayback} aria-label={playing?"Pause":"Play"}>{playing?<Pause size={14}/>:<Play size={14}/>}</button><span>{formatTime(currentTime)}</span><input aria-label="Seek audio" type="range" min={0} max={duration || 32} step={0.05} value={Math.min(currentTime,duration||32)} onChange={e=>{const value=Number(e.target.value);if(audioRef.current)audioRef.current.currentTime=value;setCurrentTime(value)}}/><span>{formatTime(duration)}</span></div></div><div className="panel timeline"><div className="panel-head"><span><Layers3 size={15}/> TIMELINE</span><span className="muted">Synced to audio</span></div><div className="ruler"><span>00:00</span><span>{formatTime(duration*.25)}</span><span>{formatTime(duration*.5)}</span><span>{formatTime(duration*.75)}</span><span>{formatTime(duration)}</span></div><div className="track"><span><AudioLines size={12}/> AUDIO</span><div className="wave">{Array.from({length:70},(_,i)=><i key={i} style={{height:`${18+((i*17+11)%72)}%`}}/>)}</div></div><div className="track"><span><Subtitles size={12}/> TEXT</span><div className="clips">{lyrics.map((line,i)=><button key={line.id} className={active===i?"clip active":`clip clip-${i%3}`} onClick={()=>{setActive(i);if(audioRef.current)audioRef.current.currentTime=toSeconds(line.time)}}>{line.text||"Lyric"}</button>)}</div></div></div></section>
+    <aside className="panel inspector"><div className="panel-head"><span><WandSparkles size={15}/> INSPECTOR</span></div><section><p className="label">ANIMATION THEME</p><div className="theme"><div className="theme-art"><i/><i/><i/></div><div><b>{theme}</b><small>Rendered typography</small></div></div><div className="options">{["Soft Glow","Kinetic Type","Minimal"].map(t=><button key={t} className={theme===t?"option chosen":"option"} onClick={()=>setTheme(t)}>{t}</button>)}</div></section><section><p className="label">LIVE VISUALS</p><label className="field">Filter preset<select value={filter} onChange={e=>setFilter(e.target.value)}><option>Neon Bloom</option><option>Chromatic</option><option>Scanlines</option><option>VHS</option><option>Clean</option></select></label><label className="spectrum-toggle"><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/> Audio-reactive FFT spectrum</label><p className="hint">FFT analyzes bass and mid/high frequencies to drive spectrum bars and glow intensity.</p><p className="label">SELECTED LYRIC</p><label className="field">Text<textarea rows={3} value={lyrics[active]?.text??""} onChange={e=>lyrics[active]&&edit(lyrics[active].id,e.target.value)}/></label><label className="field">Start time (MM:SS.xx)<input value={lyrics[active]?.time??""} onChange={e=>lyrics[active]&&editTime(lyrics[active].id,e.target.value)} placeholder="00:04.20"/></label><p className="hint">Each lyric appears at its start time and remains until the next line. Export records the full audio duration.</p></section><section><p className="label">EXPORT SETTINGS</p><div className="setting"><span>Aspect ratio</span><b>16:9</b></div><div className="setting"><span>Resolution</span><b>1920 × 1080</b></div><div className="setting"><span>Frame rate</span><b>30 FPS</b></div><div className="setting"><span>Output</span><b>WebM · VP9/VP8</b></div><p className="hint export-status">{exportMessage}</p><button className="download-action" onClick={exportVideo} disabled={exporting||!audioUrl}><Download size={14}/>{exporting?"Rendering video…":"Render and save video"}</button></section><div className="foot"><WandSparkles size={14}/> Local rendering · no upload</div></aside></section><footer><span><i/> {exporting?"Rendering": "Ready"}</span><span>{audioName || "No audio imported"}</span><span>{exportMessage}</span></footer></main>;
 }
