@@ -201,11 +201,16 @@ export default function App() {
       const startAt = performance.now();
       let animation = 0;
       let stopped = false;
+      let lastUiUpdate = 0;
       const render = () => {
         const time = audio.currentTime;
         drawFrame(ctx, time, width, height);
-        setCurrentTime(time);
-        setExportMessage(`Rendering · ${formatTime(time)} / ${formatTime(duration)}`);
+        const now = performance.now();
+        if (now - lastUiUpdate > 200) {
+          lastUiUpdate = now;
+          setCurrentTime(time);
+          setExportMessage(`Rendering · ${formatTime(time)} / ${formatTime(duration)}`);
+        }
         if (!audio.paused && recorder.state === "recording" && !stopped) animation = window.setTimeout(render, 1000 / targetFps) as unknown as number;
       };
       await audio.play(); setPlaying(true); render();
