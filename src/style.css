@@ -7,3 +7,13 @@
 .fps-select,.field select{max-width:100%;border:1px solid #3b3549;border-radius:5px;padding:6px 8px;background:#1b1823;color:#e4dcff;font-size:10px;cursor:pointer}.spectrum-toggle{display:flex;align-items:center;gap:7px;color:#b9b3c7;font-size:10px;margin:10px 0}.spectrum-toggle input{accent-color:#b9a5ff}.stage-content h2{overflow-wrap:anywhere}.setting .fps-select{font-family:"DM Mono",monospace}
 
 .preview-canvas{display:block;width:100%;height:100%;object-fit:contain;aspect-ratio:16/9}.stage{display:block;min-height:0}.fps-select,.field select{max-width:100%;border:1px solid #3b3549;border-radius:5px;padding:6px 8px;background:#1b1823;color:#e4dcff;font-size:10px;cursor:pointer}.spectrum-toggle{display:flex;align-items:center;gap:7px;color:#b9b3c7;font-size:10px;margin:10px 0}.spectrum-toggle input{accent-color:#b9a5ff}
+
+
+.halloween-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:#05040bc9;backdrop-filter:blur(10px)}
+.halloween-card{width:min(420px,100%);padding:30px;border:1px solid #ffb36a55;border-radius:22px;background:linear-gradient(145deg,#2a1b32,#15151c 70%);box-shadow:0 24px 90px #0009;text-align:center}
+.halloween-art{font-size:54px;filter:drop-shadow(0 0 18px #ff9b4580)}
+.halloween-card h2{margin:12px 0 8px;font:600 22px "Space Grotesk",sans-serif;color:#fff1df}
+.halloween-card p{color:#c4bacb;font-size:12px;line-height:1.7}
+.halloween-card button{margin-top:14px;padding:10px 15px;border:1px solid #ffb36a66;border-radius:8px;background:#ff9d4a;color:#201521;font-size:11px;font-weight:700}
+.halloween-card button:focus-visible{outline:2px solid white;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.halloween-overlay{backdrop-filter:none}}

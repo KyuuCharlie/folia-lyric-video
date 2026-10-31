@@ -32,6 +32,20 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState("Ready");
+  const [halloweenOpen, setHalloweenOpen] = useState(false);
+  useEffect(() => {
+    let typed = "";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setHalloweenOpen(false); return; }
+      if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      typed = (typed + event.key.toLowerCase()).slice(-7);
+      if (typed === "pumpkin") { setHalloweenOpen(true); typed = ""; }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -230,7 +244,7 @@ export default function App() {
       setExportMessage(error instanceof Error ? error.message : "Export failed");
     }
   };
-  return <main className="app"><header className="topbar"><div className="brand"><span className="brand-icon"><AudioLines size={20}/></span> folia <span className="light">studio</span><span className="tag">WINDOWS FIRST</span></div><div className="top-actions"><span className="local-dot"/> Local project <Settings2 size={17}/></div></header>
+  return <main className="app">{halloweenOpen && <div className="halloween-overlay" role="dialog" aria-modal="true" aria-label="Halloween surprise"><div className="halloween-card"><div className="halloween-art" aria-hidden="true">🎃 👻</div><h2>Hidden track unlocked!</h2><p>A little Halloween magic slipped into the timeline. Keep creating something wonderful.</p><button type="button" onClick={() => setHalloweenOpen(false)}>Back to the studio</button></div></div>}<header className="topbar"><div className="brand"><span className="brand-icon"><AudioLines size={20}/></span> folia <span className="light">studio</span><span className="tag">WINDOWS FIRST</span></div><div className="top-actions"><span className="local-dot"/> Local project <Settings2 size={17}/></div></header>
     <section className="heading"><div><p className="eyebrow">DESKTOP WORKSPACE</p><h1>Lyric video studio</h1><p className="sub">Shape the words. Set the rhythm. Export your video.</p></div><button className="export" onClick={exportVideo} disabled={exporting}><Clapperboard size={16}/>{exporting ? "Rendering…" : `Export ${fps} FPS`}</button></section>
     <audio ref={audioRef} src={audioUrl || undefined} onLoadedMetadata={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 32)} onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)} />
     <canvas ref={canvasRef} className="render-canvas" aria-hidden="true" />
