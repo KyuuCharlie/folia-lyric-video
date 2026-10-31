@@ -36,3 +36,7 @@ npm run build
 
 ## Licensing
 Do not redistribute upstream Folia code or assets until applicable license and attribution requirements are verified.
+
+## Halloween easter egg 🎃
+
+In the studio, type `pumpkin` anywhere outside an input to reveal a small seasonal surprise. Press Escape or use the close button to dismiss it. The effect is UI-only and is not included in exported video frames.
